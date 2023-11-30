@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "express": "^4.18.2",
+    "fs": "^0.0.1-security",
+    "multiparty": "^4.2.3",
+    "nunjucks": "^3.2.4"
+  }
+}
