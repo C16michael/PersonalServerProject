@@ -1,11 +1,74 @@
 // Import required modules
 const express = require("express");
+const expressWs = require('express-ws');
 const app = express();
 const multiparty = require("multiparty");
 const path = require("path");
 const fs = require("fs");
 const port = 3000;
 const nunjucks = require('nunjucks');
+const mongodb = require('mongodb');
+const mongoose = require('mongoose');
+const { MONGODB } = require("./credentials");
+
+expressWs(app);
+
+
+const client = new mongodb.MongoClient(`mongodb+srv://${MONGODB.user}:${MONGODB.login}@${MONGODB.cluster}/?retryWrites=true&w=majority`);
+
+// Connect to MongoDB
+mongoose.connect(`mongodb+srv://${MONGODB.user}:${MONGODB.login}@${MONGODB.cluster}/?retryWrites=true&w=majority`)
+  .then(() => console.log('Connected to MongoDB Mongoose'))
+  .catch(err => console.error('Could not connect to MongoDB', err));
+
+  // Function to connect to MongoDB and return the collection
+async function connectToMongoDB() {
+  await client.connect();
+  console.log("Connected to MongoDB");
+  return client.db("Asgn3").collection("Test");
+}
+
+const totalCountSchema = new mongoose.Schema({
+  totalPreviews: { type: Number, default: 0 },
+  totalDownloads: { type: Number, default: 0 }
+});
+
+const TotalCount = mongoose.model('TotalCount', totalCountSchema);
+
+app.ws('/count', async (ws, req) => {
+  const db = await connectToMongoDB();
+  console.log("WebSocket connection established with /count");
+
+  ws.on('message', async (msg) => {
+    console.log("WebSocket message received:", msg);
+
+    try {
+      const { type } = JSON.parse(msg);
+      console.log(`Incrementing ${type} count`);
+
+      if (type === 'preview') {
+        const updateResult = await db.findOneAndUpdate(
+          { varName: 'PreviewCount' },
+          { $inc: { value: 1 } },
+          { new: true, upsert: true }
+        );
+        console.log('PreviewCount updated:', updateResult.value);
+      } else if (type === 'download') {
+        const updateResult = await db.findOneAndUpdate(
+          { varName: 'DownloadCount' },
+          { $inc: { value: 1 } },
+          { new: true, upsert: true }
+        );
+        console.log('DownloadCount updated:', updateResult.value);
+      }
+
+      ws.send(JSON.stringify({ type, status: 'updated' }));
+    } catch (error) {
+      console.error('WebSocket error:', error);
+    }
+  });
+});
+
 
 // Define the directory for serving files and keeping download count
 const publicDirectory = path.join(__dirname, "public"); // Directory for serving files
@@ -17,6 +80,7 @@ nunjucks.configure('views', { // 'views' is the directory where your templates a
   express: app
 });
 
+
 // Set Nunjucks as the rendering engine for HTML files
 app.set('view engine', 'njk');
 
@@ -25,48 +89,67 @@ app.use(express.json()); // Parse JSON request bodies
 app.use(express.urlencoded({ extended: true })); // Parse form data in URL-encoded request bodies
 
 // Define a route to list directory content
-app.get("/files", (req, res) => {
-  // Read the list of files in the public directory and send as an HTML response
-  fs.readdir(publicDirectory, (err, files) => {
-    if (err) {
-      // Handle errors when reading the directory
-      return res.status(500).sendFile(__dirname + "/500.html"); // Return a 500 Internal Server Error if reading the directory fails
-    }
+app.get("/files", async (req, res) => {
+  try {
+    const db = await connectToMongoDB();
+    const previewCountDoc = await db.findOne({ varName: 'PreviewCount' });
+    const downloadCountDoc = await db.findOne({ varName: 'DownloadCount' });
 
-    const fileLinks = files.map((filename) => {
+    const files = await fs.promises.readdir(publicDirectory);
+    const fileLinks = files.map(filename => {
       const fileLink = `/${filename}`;
-      // Generate HTML links for each file in the directory with separate links for download and preview
-      return `<div>
-                    ${filename}
-                    <a href="${fileLink}" download="${filename}">Download</a> 
-                    <a href="${fileLink}" target="_blank">Preview</a>
-                  </div>`;
+      return `<div>${filename}<br><a href="${fileLink}" download="${filename}" class="download-link" onclick="sendCountUpdate('download')">- Download</a>
+      <a href="${fileLink}" target="_blank" class="preview-link" onclick="sendCountUpdate('preview')">- Preview</a>
+      `;
+    }).join("<br>");
+    
+
+    res.render('file-list', {
+      fileList: fileLinks,
+      totalPreviews: previewCountDoc ? previewCountDoc.value : 0,
+      totalDownloads: downloadCountDoc ? downloadCountDoc.value : 0
     });
-
-    const fileList = fileLinks.join("<br>"); // Join the file links with line breaks
-    res.send(fileList); // Send the list of files as an HTML response
-  });
-});
-
-// Define a route to handle file previews
-app.get("/preview/:filename", (req, res) => {
-  const filename = req.params.filename; // Get the filename from the URL parameter
-  const filePath = path.join(publicDirectory, filename); // Create the full path to the requested file
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      // Handle errors when reading the file
-      res.status(404).sendFile(__dirname + "/404.html")// Return a 404 Not Found if the file is not found
-    }
-    res.send(data); // Send the file data for previewing
-  });
+  } catch (error) {
+    console.error('Error in /files route:', error);
+    res.status(500).render('500', {
+      title: '500 Internal Server Error',
+      message: 'Error processing request.'
+    });
+  }
 });
 
 // Define a route to display the file upload form
 app.get("/upload/form", (req, res) => {
-  // Send an HTML form for file uploads
-  res.sendFile(path.join(__dirname, "/upload.html"));
+  res.render('upload-form');
 });
+
+app.get('/files/:filename', async (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(publicDirectory, filename);
+
+  try {
+    // Increment the DownloadCount in the database
+    const result = await connectToMongoDB().findOneAndUpdate(
+      { varName: 'DownloadCount' },
+      { $inc: { value: 1 } },
+      { new: true, upsert: true }
+    );
+
+    console.log('DownloadCount incremented:', result.value);
+
+    // Send the file for download
+    res.download(filePath, filename);
+  } catch (error) {
+    console.error('Error processing file download:', error);
+    res.status(500).render('500', {
+      title: '500 Internal Server Error',
+      message: 'Error processing file download.'
+    });
+  }
+});
+
+
+
 
 // Define a route to handle file uploads via POST requests
 app.post('/upload', (req, res) => {
