@@ -1,0 +1,45 @@
+{%  import "../macros/forms.njk" as forms %}
+{%  import "../macros/student_views.njk" as student_views %}
+<!DOCTYPE html>
+<html lang="en">
+{% block header %}
+<head>
+    <meta charset="UTF-8">
+    <title>My DB API</title>
+</head>
+{% endblock %}
+<body>
+    {% block mainbody %}
+        Default body missing
+    {% endblock %}
+    {% block footer %}
+        <p>Made with Nunjuck</p>
+    {%  endblock %}
+</body>
+
+{% set Version=1 %}
+<script>
+    let ws = new WebSocket("ws://localhost:3000/vars");
+
+    // Update express about variable changes
+    function updateVariable(varName, value) {
+        const data = {
+            varName: varName,
+            value: value
+        };
+        ws.send(JSON.stringify(data));
+    }
+
+    // display updates coming through websocket
+    ws.onmessage = function(event) {
+        console.log(event.data);
+        let received = JSON.parse(event.data);
+        document.querySelectorAll("*").forEach(el => {
+            if (el.className.toString() === received.varName) {
+                el.innerHTML = received.value;
+            }
+        })
+    }
+</script>
+
+</html>
