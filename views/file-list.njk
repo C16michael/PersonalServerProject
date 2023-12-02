@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File List</title>
+</head>
+<body>
+    <h1>File List</h1>
+    <p id="totalPreviewCount">Total Preview Count: {{ totalPreviews }}</p>
+    <p id="totalDownloadCount">Total Download Count: {{ totalDownloads }}</p>
+
+    <div>
+        {{ fileList | safe }}
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000/count');
+
+        ws.onopen = function() {
+            console.log('WebSocket connection established');
+        };
+
+        function sendCountUpdate(type) {
+            ws.send(JSON.stringify({ type }));
+        }
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.status === 'updated') {
+                if (data.type === 'preview') {
+                    const previewCountElement = document.getElementById('totalPreviewCount');
+                    const currentCount = parseInt(previewCountElement.textContent.split(": ")[1]);
+                    previewCountElement.textContent = `Total Preview Count: ${currentCount + 1}`;
+                } else if (data.type === 'download') {
+                    const downloadCountElement = document.getElementById('totalDownloadCount');
+                    const currentCount = parseInt(downloadCountElement.textContent.split(": ")[1]);
+                    downloadCountElement.textContent = `Total Download Count: ${currentCount + 1}`;
+                }
+            }
+        };
+    </script>
+</body>
+</html>
