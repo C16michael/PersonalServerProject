@@ -1,9 +1,8 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>File Upload Form</title>
-</head>
-<body>
+{% extends "base.njk" %}
+
+{% block title %}File Upload Form{% endblock %}
+
+{% block content %}
     <h1>Upload a File</h1>
 
     <!-- The form for uploading files -->
@@ -16,8 +15,9 @@
 
     <!-- Container for displaying upload status messages -->
     <div id="upload-status"></div>
+{% endblock %}
 
-    <!-- JavaScript code for handling the form submission via AJAX -->
+{% block scripts %}
     <script>
         document.getElementById('upload-form').addEventListener('submit', (e) => {
             e.preventDefault(); // Prevent the default form submission behavior
@@ -42,5 +42,4 @@
             });
         });
     </script>
-</body>
-</html>
+{% endblock %}

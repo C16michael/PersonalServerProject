@@ -1,5 +1,6 @@
-<!DOCTYPE html>
-<html>
+{% extends "base.njk" %}
+
+{% block content %}
     <head>
         <meta charset="UTF-8">
         <title>{{ title }}</title>
@@ -8,6 +9,6 @@
         <h1>Oops! Page Not Found</h1>
         <p>The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
         <img src="beni404.jpg" alt="404 Not Found">
-        <p><a href="/">Go to Home Page</a></p>
+        <p><a href="/files">Go to Home Page</a></p>
     </body>
-</html>
+{% endblock %}

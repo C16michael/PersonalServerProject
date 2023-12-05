@@ -1,9 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>File List</title>
-</head>
-<body>
+{% extends "base.njk" %}
+
+{% block content %}
     <h1>File List</h1>
     <p id="totalPreviewCount">Total Preview Count: {{ totalPreviews }}</p>
     <p id="totalDownloadCount">Total Download Count: {{ totalDownloads }}</p>
@@ -11,7 +8,9 @@
     <div>
         {{ fileList | safe }}
     </div>
+{% endblock %}
 
+{% block scripts %}
     <script>
         const ws = new WebSocket('ws://localhost:3000/count');
 
@@ -38,5 +37,4 @@
             }
         };
     </script>
-</body>
-</html>
+{% endblock %}
